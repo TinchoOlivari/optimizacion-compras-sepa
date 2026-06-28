@@ -1,0 +1,127 @@
+name: tfg
+
+networks:
+  tfg_net:
+    driver: bridge
+
+volumes:
+  pgdata:
+  sepa_data:
+
+services:
+  db:
+    image: postgis/postgis:17-3.5
+    platform: linux/amd64
+    command:
+      - postgres
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - maintenance_work_mem=256MB
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tfg}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tfg}
+      POSTGRES_DB: ${POSTGRES_DB:-tfg}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - tfg_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tfg} -d ${POSTGRES_DB:-tfg}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    image: postgis/postgis:17-3.5
+    platform: linux/amd64
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:-tfg}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-tfg}
+      PGDATABASE: ${POSTGRES_DB:-tfg}
+    volumes:
+      - ../db/migrations:/migrations:ro
+    entrypoint: ["bash", "/migrations/run.sh"]
+    restart: "no"
+    networks:
+      - tfg_net
+
+  api:
+    build:
+      context: ../apps/api
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - ../.env
+    ports:
+      - "8000:8000"
+    networks:
+      - tfg_net
+    healthcheck:
+      test:
+        ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/v1/health').status==200 else 1)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    depends_on:
+      - api
+    ports:
+      - "3000:80"
+    networks:
+      - tfg_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ingesta:
+    build:
+      context: ../apps/ingesta
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ../.env
+    environment:
+      CKAN_DATASET_ID: ${CKAN_DATASET_ID:-sepa-precios}
+      SEPA_FECHA_LOTE: ${SEPA_FECHA_LOTE:-}
+    volumes:
+      - sepa_data:/data/sepa
+      - ../SEPA:/data/sepa/local:ro
+    restart: "no"
+    networks:
+      - tfg_net
+    profiles:
+      - tools
+
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend:v6.0.0
+    command: osrm-routed --algorithm mld /data/argentina-latest
+    ports:
+      - "5001:5000"
+    volumes:
+      - ./osm:/data:ro
+    networks:
+      - tfg_net
+    profiles:
+      - geo

@@ -1,0 +1,19 @@
+{
+  "name": "tfg",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sistema de optimización de compra minorista mediante datos abiertos de precios",
+  "workspaces": [
+    "apps/web",
+    "packages/shared"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "lint:web": "npm run lint --workspace apps/web",
+    "test:web": "npm run test --workspace apps/web",
+    "typecheck:web": "npm run typecheck --workspace apps/web",
+    "build:shared": "npm run build --workspace packages/shared"
+  }
+}

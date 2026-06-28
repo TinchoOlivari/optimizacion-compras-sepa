@@ -1,0 +1,38 @@
+[project]
+name = "tfg-ingesta"
+version = "0.1.0"
+description = "TFG SEPA - proceso de ingesta (placeholder)"
+requires-python = ">=3.13"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.black]
+line-length = 100
+target-version = ["py313"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=ingesta --cov-report=term-missing"
+markers = [
+    "integration: tests que requieren PostgreSQL real",
+]
+
+[dependency-groups]
+dev = [
+    "ruff==0.9.10",
+    "black==25.1.0",
+    "mypy==1.15.0",
+    "pytest==8.3.5",
+    "pytest-cov==6.0.0",
+]

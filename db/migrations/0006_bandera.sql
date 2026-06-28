@@ -1,0 +1,20 @@
+-- 0006_bandera.sql
+
+BEGIN;
+
+CREATE TABLE IF NOT EXISTS bandera (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre VARCHAR(255) NOT NULL UNIQUE,
+    url_logo VARCHAR(500) NULL
+);
+
+ALTER TABLE sucursal
+    ADD COLUMN IF NOT EXISTS bandera_id BIGINT NULL REFERENCES bandera (id);
+
+ALTER TABLE comercio
+    DROP COLUMN IF EXISTS logo_url;
+
+ALTER TABLE comercio
+    DROP COLUMN IF EXISTS marca;
+
+COMMIT;

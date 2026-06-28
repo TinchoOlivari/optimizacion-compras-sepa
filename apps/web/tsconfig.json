@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "ES2022"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "verbatimModuleSyntax": false,
+      "types": ["node", "vitest"],
+    "paths": {
+      "@/*": ["./src/*", "./*"],
+      "@tfg/shared": ["../../packages/shared/src/index.ts"]
+    }
+  },
+  "include": ["src", "lib", "store", "types", "**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules", "dist", "app", "tests", "__tests__"]
+}

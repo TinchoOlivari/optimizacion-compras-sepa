@@ -10,11 +10,13 @@ import { formatearDireccionParada } from "../lib/buildCompraGuiada";
 interface ParadaCompraCardProps {
   parada: ParadaCompraViewModel;
   onEstadoChange: (progresoItemId: number, estado: EstadoItem) => void;
+  actualizandoItemId: number | null;
 }
 
 export function ParadaCompraCard({
   parada,
   onEstadoChange,
+  actualizandoItemId,
 }: ParadaCompraCardProps): React.ReactElement {
   const direccion = formatearDireccionParada(parada);
   const logoNombre = parada.banderaNombre ?? parada.comercio;
@@ -30,6 +32,11 @@ export function ParadaCompraCard({
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
                   Parada {parada.numero}
                 </p>
+                {parada.esAdicional ? (
+                  <p className="mt-1 inline-flex rounded-full bg-accent-light px-2 py-0.5 text-[10px] font-semibold text-accent-hover">
+                    Agregada por faltante
+                  </p>
+                ) : null}
                 <h2 className="truncate text-sm font-semibold text-text-primary">
                   {parada.sucursal}
                 </h2>
@@ -54,7 +61,12 @@ export function ParadaCompraCard({
 
       <ul className="space-y-1.5 p-2">
         {parada.items.map((item) => (
-          <ItemCompraCard key={item.itemCarritoId} item={item} onEstadoChange={onEstadoChange} />
+          <ItemCompraCard
+            key={item.itemCarritoId}
+            item={item}
+            actualizando={actualizandoItemId === item.progresoItemId}
+            onEstadoChange={onEstadoChange}
+          />
         ))}
       </ul>
     </article>

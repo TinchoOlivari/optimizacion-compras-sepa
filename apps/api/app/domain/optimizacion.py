@@ -189,12 +189,11 @@ class IDistribucionRepository(Protocol):
 
     def calcular_costo_referencia(
         self,
-        usuario_id: int,
-        carrito_id: int,
         *,
         origen_lat: float,
         origen_lon: float,
         radio_km: int,
+        items: list[tuple[int, int]],
     ) -> float | None: ...
 
     def guardar_distribucion(

@@ -165,12 +165,16 @@ class DistribucionService:
         )
 
         costo_total = round(sum(a.subtotal for a in asignaciones), 2)
+        items_asignados = [
+            (item.producto_id, item.cantidad)
+            for asignacion in asignaciones
+            for item in asignacion.items
+        ]
         costo_referencia = self._distribucion_repo.calcular_costo_referencia(
-            usuario_id,
-            carrito_id,
             origen_lat=configuracion.origen_lat,
             origen_lon=configuracion.origen_lon,
             radio_km=configuracion.radio_km,
+            items=items_asignados,
         )
         ahorro_estimado = None
         if costo_referencia is not None:

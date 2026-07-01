@@ -221,7 +221,7 @@ function AhorroInfoTooltip(): React.ReactElement {
         i
       </button>
       <div className="pointer-events-none absolute left-0 top-full z-10 mt-2 hidden w-64 rounded-xl border border-border bg-surface p-3 text-left text-xs normal-case tracking-normal text-text-secondary shadow-lg group-hover:block group-focus-within:block">
-        El ahorro compara los precios elegidos para tu carrito con una referencia dentro del radio configurado. Puede variar segun la disponibilidad de productos y las sucursales encontradas.
+        El ahorro compara el precio elegido para cada producto con el precio promedio de ese mismo producto entre las sucursales del radio configurado.
       </div>
     </div>
   );

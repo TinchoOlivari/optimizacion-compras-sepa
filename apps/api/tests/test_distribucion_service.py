@@ -72,11 +72,8 @@ class _FakeDistribucionRepo:
 
     def calcular_costo_referencia(
         self,
-        usuario_id: int,
-        carrito_id: int,
         **kwargs: object,
     ) -> float | None:
-        _ = (usuario_id, carrito_id)
         self.referencia_kwargs = kwargs
         return self._costo_referencia
 
@@ -290,7 +287,12 @@ def test_distribucion_calcula_ahorro_y_ruteo() -> None:
     assert motor.ultima_entrada is not None
     assert motor.ultima_entrada.distancia_origen_sucursal_km == {1: 1.2, 2: 4.0}
     assert repo.ofertas_kwargs == {"origen_lat": -31.0, "origen_lon": -64.0, "radio_km": 5}
-    assert repo.referencia_kwargs == {"origen_lat": -31.0, "origen_lon": -64.0, "radio_km": 5}
+    assert repo.referencia_kwargs == {
+        "origen_lat": -31.0,
+        "origen_lon": -64.0,
+        "radio_km": 5,
+        "items": [(10, 1)],
+    }
     assert motor.ultima_entrada.max_paradas == 3
     assert motor.ultima_entrada.preferencia == "MENOR_PRECIO"
 

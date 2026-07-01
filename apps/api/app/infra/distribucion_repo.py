@@ -311,64 +311,54 @@ class DistribucionRepository(IDistribucionRepository):
 
     def calcular_costo_referencia(
         self,
-        usuario_id: int,
-        carrito_id: int,
         *,
         origen_lat: float,
         origen_lon: float,
         radio_km: int,
+        items: list[tuple[int, int]],
     ) -> float | None:
+        if not items:
+            return None
+
+        producto_ids = [producto_id for producto_id, _ in items]
+        cantidades = [cantidad for _, cantidad in items]
+
         with get_connection() as conn:
             with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(
                     """
-                    WITH items AS (
-                        SELECT ic.id, ic.producto_id, ic.cantidad
-                        FROM item_carrito ic
-                        JOIN carrito c ON c.id = ic.carrito_id
-                        WHERE c.usuario_id = %s AND c.id = %s
+                    WITH carrito_items AS (
+                        SELECT *
+                        FROM unnest(%s::int[], %s::int[]) AS t(producto_id, cantidad)
                     ),
-                    candidatos AS (
-                        SELECT s.id AS sucursal_id
-                        FROM sucursal s
+                    precios_radio AS (
+                        SELECT pr.producto_id, pr.valor
+                        FROM precio pr
+                        JOIN sucursal s ON s.id = pr.sucursal_id
                         WHERE s.geo IS NOT NULL
                           AND ST_DWithin(
                                 s.geo,
                                 ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography,
                                 %s * 1000
                           )
+                          AND pr.producto_id IN (SELECT producto_id FROM carrito_items)
+                          AND pr.fecha_vigencia = (
+                                SELECT MAX(pr2.fecha_vigencia)
+                                FROM precio pr2
+                                WHERE pr2.producto_id = pr.producto_id
+                                  AND pr2.sucursal_id = pr.sucursal_id
+                          )
                     ),
-                    cobertura AS (
-                        SELECT
-                            c.sucursal_id,
-                            COUNT(DISTINCT i.producto_id) AS productos_cubiertos
-                        FROM candidatos c
-                        JOIN items i ON true
-                        JOIN precio pr
-                          ON pr.sucursal_id = c.sucursal_id
-                         AND pr.producto_id = i.producto_id
-                        GROUP BY c.sucursal_id
-                    ),
-                    mejor AS (
-                        SELECT sucursal_id
-                        FROM cobertura
-                        ORDER BY productos_cubiertos DESC, sucursal_id ASC
-                        LIMIT 1
+                    promedios AS (
+                        SELECT producto_id, AVG(valor) AS precio_promedio
+                        FROM precios_radio
+                        GROUP BY producto_id
                     )
-                    SELECT SUM(i.cantidad * pr.valor) AS costo
-                    FROM items i
-                    JOIN mejor m ON true
-                    JOIN precio pr
-                      ON pr.sucursal_id = m.sucursal_id
-                     AND pr.producto_id = i.producto_id
-                    WHERE pr.fecha_vigencia = (
-                        SELECT MAX(pr2.fecha_vigencia)
-                        FROM precio pr2
-                        WHERE pr2.producto_id = pr.producto_id
-                          AND pr2.sucursal_id = pr.sucursal_id
-                    )
+                    SELECT SUM(ci.cantidad * p.precio_promedio) AS costo
+                    FROM carrito_items ci
+                    JOIN promedios p ON p.producto_id = ci.producto_id
                     """,
-                    (usuario_id, carrito_id, origen_lon, origen_lat, radio_km),
+                    (producto_ids, cantidades, origen_lon, origen_lat, radio_km),
                 )
                 row = cur.fetchone()
 

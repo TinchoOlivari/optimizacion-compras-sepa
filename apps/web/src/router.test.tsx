@@ -25,6 +25,54 @@ function mockBackendResponses(): void {
         );
       }
 
+      if (url.includes("/distribucion")) {
+        return new Response(
+          JSON.stringify({
+            id: 20,
+            fecha_calculo: "2026-06-15T12:00:00",
+            costo_total_estimado: 14500,
+            ahorro_estimado: 2300,
+            configuracion: {
+              radio_km: 10,
+              max_paradas: 3,
+              preferencia: "MENOR_PRECIO",
+              por_defecto_aplicado: [],
+            },
+            asignaciones: [
+              {
+                sucursal_id: 101,
+                sucursal: "Día Av. Rivadavia",
+                comercio: "Supermercado Día",
+                direccion: "Av. Rivadavia 4500",
+                localidad: "Córdoba",
+                provincia: "Córdoba",
+                latitud: -31.4175,
+                longitud: -64.1833,
+                distancia_km: 1.2,
+                bandera_nombre: "Día",
+                bandera_logo_url: null,
+                subtotal: 2500,
+                items: [
+                  {
+                    item_carrito_id: 1,
+                    producto_id: 1,
+                    nombre_producto: "Leche Entera Larga Vida",
+                    cantidad: 2,
+                    precio_unitario: 1250,
+                    subtotal: 2500,
+                    url_imagen: null,
+                  },
+                ],
+              },
+            ],
+            items_no_asignados: [],
+            ruteo: { distancia_total_km: 0, paradas: [] },
+            mensaje: null,
+          }),
+          { status: 200 },
+        );
+      }
+
       if (url.includes("/api/v1/carritos/activo")) {
         return new Response(
           JSON.stringify({
@@ -80,6 +128,7 @@ function mockBackendResponses(): void {
                 bandera_nombre: "Día",
                 bandera_logo_url: null,
                 subtotal: 2500,
+                es_adicional: false,
                 items: [
                   {
                     progreso_item_id: 301,

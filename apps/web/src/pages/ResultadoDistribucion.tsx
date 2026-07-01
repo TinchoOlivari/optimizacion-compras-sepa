@@ -90,7 +90,6 @@ export default function ResultadoDistribucionPage(): React.ReactElement {
   }
 
   const ahorro = resultado.ahorro_estimado;
-  const distanciaTotal = resultado.ruteo.distancia_total_km;
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-6 pb-24">

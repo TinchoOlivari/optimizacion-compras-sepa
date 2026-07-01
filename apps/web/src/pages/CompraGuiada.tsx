@@ -6,11 +6,13 @@ import { Button } from "@/components/Button";
 import { Modal } from "@/components/Modal";
 import { ParadaCompraCard } from "@/features/compra-guiada/components/ParadaCompraCard";
 import { useCompraGuiadaViewModel } from "@/features/compra-guiada/hooks/useCompraGuiadaViewModel";
+import { formatearARS } from "@/lib/format";
 
 export default function CompraGuiadaPage(): React.ReactElement {
   const navigate = useNavigate();
   const params = useParams();
   const [modalInterrumpir, setModalInterrumpir] = useState(false);
+  const [precioAlternativaSeleccionada, setPrecioAlternativaSeleccionada] = useState<number | null>(null);
   const compraGuiadaId = params.id ? Number(params.id) : null;
   const idValido = compraGuiadaId != null && Number.isInteger(compraGuiadaId) && compraGuiadaId > 0;
   const {
@@ -21,6 +23,11 @@ export default function CompraGuiadaPage(): React.ReactElement {
     resueltos,
     totalItems,
     actualizarEstado,
+    actualizandoItemId,
+    alternativasPendientes,
+    resolverAlternativa,
+    resolviendoAlternativa,
+    cerrarPropuestaAlternativa,
     finalizar,
     finalizando,
   } = useCompraGuiadaViewModel(idValido ? compraGuiadaId : null, () =>
@@ -62,6 +69,11 @@ export default function CompraGuiadaPage(): React.ReactElement {
   }
 
   const hayPendientes = pendientes > 0;
+  const alternativasFaltante = alternativasPendientes?.alternativas ?? [];
+  const alternativaSeleccionada =
+    alternativasFaltante.find((alternativa) => alternativa.precio_id === precioAlternativaSeleccionada) ??
+    alternativasFaltante[0] ??
+    null;
 
   function handleFinalizar(): void {
     if (hayPendientes) {
@@ -110,6 +122,7 @@ export default function CompraGuiadaPage(): React.ReactElement {
           <ParadaCompraCard
             key={parada.sucursalId}
             parada={parada}
+            actualizandoItemId={actualizandoItemId}
             onEstadoChange={actualizarEstado}
           />
         ))}
@@ -155,8 +168,110 @@ export default function CompraGuiadaPage(): React.ReactElement {
           onClick: () => setModalInterrumpir(false),
         }}
       />
+
+      <Modal
+        open={alternativasPendientes != null}
+        title="Resolver producto faltante"
+        description={
+          alternativaSeleccionada
+            ? `${alternativaSeleccionada.nombre_producto} está disponible en estas sucursales. Elegí la que más te convenga o conservá el recorrido original.`
+            : ""
+        }
+        onClose={() => {
+          setPrecioAlternativaSeleccionada(null);
+          cerrarPropuestaAlternativa();
+        }}
+        primaryAction={{
+          label: resolviendoAlternativa ? "Agregando..." : "Agregar parada",
+          onClick: () => {
+            if (alternativaSeleccionada) {
+              resolverAlternativa(alternativaSeleccionada.precio_id, true);
+              setPrecioAlternativaSeleccionada(null);
+            }
+          },
+        }}
+        secondaryAction={{
+          label: "No ir",
+          onClick: () => {
+            if (alternativaSeleccionada) {
+              resolverAlternativa(alternativaSeleccionada.precio_id, false);
+              setPrecioAlternativaSeleccionada(null);
+            }
+          },
+        }}
+      >
+        <div className="mt-3 space-y-1">
+          {alternativasFaltante.map((alternativa) => {
+            const seleccionada = alternativa.precio_id === alternativaSeleccionada?.precio_id;
+            return (
+              <button
+                key={alternativa.precio_id}
+                type="button"
+                onClick={() => setPrecioAlternativaSeleccionada(alternativa.precio_id)}
+                className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition ${
+                  seleccionada
+                    ? "border-primary bg-primary-light/40"
+                    : "border-border bg-muted/30 hover:bg-muted"
+                }`}
+              >
+                <div
+                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                    seleccionada
+                      ? "border-primary bg-primary"
+                      : "border-border bg-surface"
+                  }`}
+                >
+                  {seleccionada && (
+                    <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium text-text-primary">{alternativa.sucursal}</p>
+                  <p className="truncate text-xs text-text-secondary">
+                    {formatearDireccionCorta(alternativa)}
+                  </p>
+                  <p
+                    className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                      alternativa.esta_en_recorrido
+                        ? "bg-success-light text-success"
+                        : "bg-accent-light text-accent-hover"
+                    }`}
+                  >
+                    {alternativa.esta_en_recorrido
+                      ? "Ya está en tu recorrido"
+                      : "Requiere parada nueva"}
+                  </p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-sm font-semibold text-text-primary">
+                    {formatearARS(alternativa.subtotal)}
+                  </p>
+                  <p className="text-xs text-text-secondary">
+                    {alternativa.distancia_km != null
+                      ? `${alternativa.distancia_km.toFixed(1)} km`
+                      : "—"}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </Modal>
     </main>
   );
+}
+
+function formatearDireccionCorta({
+  direccion,
+  localidad,
+}: {
+  direccion: string | null;
+  localidad: string | null;
+}): string {
+  const partes = [direccion, localidad].filter(Boolean);
+  return partes.length > 0 ? partes.join(", ") : "dirección no informada";
 }
 
 function VolverButton({ onClick }: { onClick: () => void }): React.ReactElement {

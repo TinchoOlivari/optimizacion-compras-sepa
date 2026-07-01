@@ -147,6 +147,7 @@ const COMPRA_GUIADA_FIXTURE = {
       bandera_nombre: "Día",
       bandera_logo_url: null,
       subtotal: 8500,
+      es_adicional: false,
       items: [
         {
           progreso_item_id: 301,
@@ -261,6 +262,7 @@ describe("UI reference pages", () => {
 
   it("renders distribution result with economic summary and guided purchase CTA", async () => {
     mockFetch((url, init) => {
+      if (url.includes("/distribucion")) return DISTRIBUCION_FIXTURE;
       if (url.includes("/api/v1/carritos/activo")) return CARRITO_ACTIVO_FIXTURE;
       if (url.includes("/distribuir") && init?.method === "POST") return DISTRIBUCION_FIXTURE;
       return {};
@@ -282,13 +284,17 @@ describe("UI reference pages", () => {
     mockFetch((url, init) => {
       if (url.includes("/api/v1/compras-guiadas/30/items/301") && init?.method === "PATCH") {
         return {
-          ...COMPRA_GUIADA_FIXTURE,
-          paradas: [
-            {
-              ...COMPRA_GUIADA_FIXTURE.paradas[0],
-              items: [{ ...COMPRA_GUIADA_FIXTURE.paradas[0].items[0], estado: "CONSEGUIDO" }],
-            },
-          ],
+          compra: {
+            ...COMPRA_GUIADA_FIXTURE,
+            paradas: [
+              {
+                ...COMPRA_GUIADA_FIXTURE.paradas[0],
+                items: [{ ...COMPRA_GUIADA_FIXTURE.paradas[0].items[0], estado: "CONSEGUIDO" }],
+              },
+            ],
+          },
+          resultado_alternativas: null,
+          aplicado_automaticamente: false,
         };
       }
       if (url.includes("/api/v1/compras-guiadas/30")) return COMPRA_GUIADA_FIXTURE;
@@ -313,6 +319,103 @@ describe("UI reference pages", () => {
       expect(screen.getByText(/sin pendientes/i)).toBeInTheDocument();
     });
     expect(screen.getByRole("button", { name: /finalizar compra/i })).toBeInTheDocument();
+  });
+
+  it("shows missing item alternatives when product is not found", async () => {
+    mockFetch((url, init) => {
+      if (url.includes("/api/v1/compras-guiadas/30/items/301") && init?.method === "PATCH") {
+        return {
+          compra: {
+            ...COMPRA_GUIADA_FIXTURE,
+            paradas: [
+              {
+                ...COMPRA_GUIADA_FIXTURE.paradas[0],
+                items: [
+                  { ...COMPRA_GUIADA_FIXTURE.paradas[0].items[0], estado: "NO_ENCONTRADO" },
+                ],
+              },
+            ],
+          },
+          resultado_alternativas: {
+            progreso_item_id: 301,
+            tiene_alternativas: true,
+            alternativas: [
+              {
+                tipo: "MISMO_PRODUCTO",
+                precio_id: 901,
+                producto_id: 1,
+                nombre_producto: "Leche Entera Larga Vida",
+                url_imagen: null,
+                sucursal_id: 102,
+                sucursal: "Día Nueva Córdoba",
+                comercio: "Supermercado Día",
+                direccion: "Bv. Illia 100",
+                localidad: "Córdoba",
+                provincia: "Córdoba",
+                bandera_nombre: "Día",
+                bandera_logo_url: null,
+                precio_unitario: 1300,
+                subtotal: 2600,
+                diferencia_precio: 100,
+                distancia_km: 1.8,
+                esta_en_recorrido: false,
+                requiere_nueva_parada: true,
+                confianza: "ALTA",
+                motivo: "Mismo producto en una sucursal cercana.",
+              },
+              {
+                tipo: "MISMO_PRODUCTO",
+                precio_id: 902,
+                producto_id: 1,
+                nombre_producto: "Leche Entera Larga Vida",
+                url_imagen: null,
+                sucursal_id: 103,
+                sucursal: "Disco Centro",
+                comercio: "Disco",
+                direccion: "San Martín 50",
+                localidad: "Córdoba",
+                provincia: "Córdoba",
+                bandera_nombre: null,
+                bandera_logo_url: null,
+                precio_unitario: 1220,
+                subtotal: 2440,
+                diferencia_precio: -60,
+                distancia_km: 2.1,
+                esta_en_recorrido: true,
+                requiere_nueva_parada: false,
+                confianza: "ALTA",
+                motivo: "Mismo producto en una parada ya recomendada.",
+              },
+            ],
+          },
+          aplicado_automaticamente: false,
+        };
+      }
+      if (url.includes("/api/v1/compras-guiadas/30")) return COMPRA_GUIADA_FIXTURE;
+      return {};
+    });
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/compra-guiada/:id" element={<CompraGuiadaPage />} />
+      </Routes>,
+      "/compra-guiada/30",
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /compra guiada/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /marcar leche entera larga vida como no encontrado/i }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /resolver producto faltante/i })).toBeInTheDocument();
+    });
+    expect(screen.getAllByText(/leche entera larga vida/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/ya está en tu recorrido/i)).toBeInTheDocument();
+    expect(screen.getByText(/requiere parada nueva/i)).toBeInTheDocument();
   });
 
   it("renders password recovery form with CTA and return link", () => {

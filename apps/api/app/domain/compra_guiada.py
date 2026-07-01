@@ -6,6 +6,8 @@ EstadoItem = Literal["PENDIENTE", "CONSEGUIDO", "NO_ENCONTRADO", "DESCARTADO"]
 EstadoItemActualizable = Literal["PENDIENTE", "CONSEGUIDO", "NO_ENCONTRADO", "DESCARTADO"]
 EstadoItemTerminal = Literal["CONSEGUIDO", "NO_ENCONTRADO", "DESCARTADO"]
 EstadoCierre = Literal["COMPLETADA", "INTERRUMPIDA"]
+TipoAlternativaFaltante = Literal["MISMO_PRODUCTO", "OTRA_PRESENTACION", "SUSTITUTO"]
+ConfianzaAlternativa = Literal["ALTA", "MEDIA", "BAJA"]
 
 
 @dataclass(frozen=True)
@@ -35,6 +37,7 @@ class ParadaCompraGuiada:
     bandera_nombre: str | None
     bandera_logo_url: str | None
     subtotal: float
+    es_adicional: bool
     items: list[ItemCompraGuiada]
 
 
@@ -46,6 +49,45 @@ class CompraGuiadaDetalle:
     fecha_cierre: datetime | None
     estado_cierre: EstadoCierre | None
     paradas: list[ParadaCompraGuiada]
+
+
+@dataclass(frozen=True)
+class AlternativaFaltante:
+    tipo: TipoAlternativaFaltante
+    precio_id: int
+    producto_id: int
+    nombre_producto: str
+    url_imagen: str | None
+    sucursal_id: int
+    sucursal: str
+    comercio: str
+    direccion: str | None
+    localidad: str | None
+    provincia: str | None
+    bandera_nombre: str | None
+    bandera_logo_url: str | None
+    precio_unitario: float
+    subtotal: float
+    diferencia_precio: float
+    distancia_km: float | None
+    esta_en_recorrido: bool
+    requiere_nueva_parada: bool
+    confianza: ConfianzaAlternativa
+    motivo: str
+
+
+@dataclass(frozen=True)
+class ResultadoAlternativasFaltante:
+    progreso_item_id: int
+    tiene_alternativas: bool
+    alternativas: list[AlternativaFaltante]
+
+
+@dataclass(frozen=True)
+class ActualizacionProgresoItem:
+    compra: CompraGuiadaDetalle
+    resultado_alternativas: ResultadoAlternativasFaltante | None = None
+    aplicado_automaticamente: bool = False
 
 
 class CompraGuiadaError(Exception):
@@ -75,6 +117,21 @@ class ICompraGuiadaRepository(Protocol):
         compra_id: int,
         progreso_item_id: int,
         estado: EstadoItemActualizable,
+    ) -> CompraGuiadaDetalle | None: ...
+
+    def buscar_alternativas_faltante(
+        self,
+        usuario_id: int,
+        compra_id: int,
+        progreso_item_id: int,
+    ) -> list[AlternativaFaltante]: ...
+
+    def aplicar_alternativa_faltante(
+        self,
+        usuario_id: int,
+        compra_id: int,
+        progreso_item_id: int,
+        precio_id: int,
     ) -> CompraGuiadaDetalle | None: ...
 
     def finalizar(

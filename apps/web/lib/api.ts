@@ -390,6 +390,7 @@ export interface ParadaCompraGuiadaResponse {
   bandera_nombre: string | null;
   bandera_logo_url: string | null;
   subtotal: number;
+  es_adicional: boolean;
   items: ItemCompraGuiadaResponse[];
 }
 
@@ -400,6 +401,42 @@ export interface CompraGuiadaResponse {
   fecha_cierre: string | null;
   estado_cierre: EstadoCierre | null;
   paradas: ParadaCompraGuiadaResponse[];
+}
+
+export interface AlternativaFaltanteResponse {
+  tipo: "MISMO_PRODUCTO" | "OTRA_PRESENTACION" | "SUSTITUTO";
+  precio_id: number;
+  producto_id: number;
+  nombre_producto: string;
+  url_imagen: string | null;
+  sucursal_id: number;
+  sucursal: string;
+  comercio: string;
+  direccion: string | null;
+  localidad: string | null;
+  provincia: string | null;
+  bandera_nombre: string | null;
+  bandera_logo_url: string | null;
+  precio_unitario: number;
+  subtotal: number;
+  diferencia_precio: number;
+  distancia_km: number | null;
+  esta_en_recorrido: boolean;
+  requiere_nueva_parada: boolean;
+  confianza: "ALTA" | "MEDIA" | "BAJA";
+  motivo: string;
+}
+
+export interface ResultadoAlternativasFaltanteResponse {
+  progreso_item_id: number;
+  tiene_alternativas: boolean;
+  alternativas: AlternativaFaltanteResponse[];
+}
+
+export interface ActualizarProgresoItemResponse {
+  compra: CompraGuiadaResponse;
+  resultado_alternativas: ResultadoAlternativasFaltanteResponse | null;
+  aplicado_automaticamente: boolean;
 }
 
 export function iniciarCompraGuiada(carritoDistribuidoId: number): Promise<CompraGuiadaResponse> {
@@ -417,12 +454,27 @@ export function updateProgresoItem(
   compraId: number,
   progresoItemId: number,
   estado: EstadoItem,
-): Promise<CompraGuiadaResponse> {
-  return apiFetch<CompraGuiadaResponse>(
+): Promise<ActualizarProgresoItemResponse> {
+  return apiFetch<ActualizarProgresoItemResponse>(
     `/api/v1/compras-guiadas/${compraId}/items/${progresoItemId}`,
     {
       method: "PATCH",
       body: JSON.stringify({ estado }),
+    },
+  );
+}
+
+export function resolverAlternativaFaltante(
+  compraId: number,
+  progresoItemId: number,
+  precioId: number,
+  aceptar: boolean,
+): Promise<CompraGuiadaResponse> {
+  return apiFetch<CompraGuiadaResponse>(
+    `/api/v1/compras-guiadas/${compraId}/items/${progresoItemId}/alternativa`,
+    {
+      method: "POST",
+      body: JSON.stringify({ precio_id: precioId, aceptar }),
     },
   );
 }

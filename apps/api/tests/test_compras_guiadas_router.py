@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from app.api.v1.compras_guiadas import get_compra_guiada_service
 from app.api.v1.dependencies import get_current_user
 from app.domain.compra_guiada import (
+    ActualizacionProgresoItem,
     CompraGuiadaDetalle,
     CompraGuiadaPendienteError,
     EstadoItem,
@@ -30,6 +31,7 @@ def _clean_overrides() -> Iterator[None]:
 class _FakeCompraGuiadaService:
     def __init__(self) -> None:
         self.actualizado: tuple[int, int, int, EstadoItemTerminal] | None = None
+        self.resuelta: tuple[int, int, int, int, bool] | None = None
         self.finalizar_error: Exception | None = None
 
     def iniciar(self, usuario_id: int, carrito_distribuido_id: int) -> CompraGuiadaDetalle:
@@ -46,9 +48,25 @@ class _FakeCompraGuiadaService:
         compra_id: int,
         progreso_item_id: int,
         estado: EstadoItemTerminal,
-    ) -> CompraGuiadaDetalle:
+    ) -> ActualizacionProgresoItem:
         self.actualizado = (usuario_id, compra_id, progreso_item_id, estado)
-        return _compra(estado=estado)
+        return ActualizacionProgresoItem(
+            compra=_compra(estado=estado),
+            resultado_alternativas=None,
+            aplicado_automaticamente=False,
+        )
+
+    def resolver_alternativa(
+        self,
+        usuario_id: int,
+        compra_id: int,
+        progreso_item_id: int,
+        *,
+        precio_id: int,
+        aceptar: bool,
+    ) -> CompraGuiadaDetalle:
+        self.resuelta = (usuario_id, compra_id, progreso_item_id, precio_id, aceptar)
+        return _compra(estado="PENDIENTE")
 
     def finalizar(
         self,
@@ -83,7 +101,7 @@ def test_iniciar_compra_guiada_201() -> None:
     assert body["paradas"][0]["items"][0]["estado"] == "PENDIENTE"
 
 
-def test_actualizar_no_encontrado_no_devuelve_alternativas() -> None:
+def test_actualizar_no_encontrado_devuelve_envoltorio_de_actualizacion() -> None:
     fake = _FakeCompraGuiadaService()
     _override_auth()
     app.dependency_overrides[get_compra_guiada_service] = lambda: fake
@@ -96,11 +114,55 @@ def test_actualizar_no_encontrado_no_devuelve_alternativas() -> None:
     assert response.status_code == 200
     assert fake.actualizado == (1, 2, 3, "NO_ENCONTRADO")
     body = response.json()
-    assert body["paradas"][0]["items"][0]["estado"] == "NO_ENCONTRADO"
-    assert "alternativas" not in body
+    assert body["compra"]["paradas"][0]["items"][0]["estado"] == "NO_ENCONTRADO"
+    assert body["resultado_alternativas"] is None
+    assert body["aplicado_automaticamente"] is False
 
 
-def test_actualizar_rechaza_pendiente_por_contrato() -> None:
+def test_actualizar_no_encontrado_devuelve_alternativas() -> None:
+    class _FakeConAlternativas(_FakeCompraGuiadaService):
+        def actualizar_item(
+            self,
+            usuario_id: int,
+            compra_id: int,
+            progreso_item_id: int,
+            estado: EstadoItemTerminal,
+        ) -> ActualizacionProgresoItem:
+            self.actualizado = (usuario_id, compra_id, progreso_item_id, estado)
+            return ActualizacionProgresoItem(
+                compra=_compra(estado="PENDIENTE"),
+                resultado_alternativas=None,
+                aplicado_automaticamente=True,
+            )
+
+    fake = _FakeConAlternativas()
+    _override_auth()
+    app.dependency_overrides[get_compra_guiada_service] = lambda: fake
+
+    response = client.patch(
+        "/api/v1/compras-guiadas/2/items/3",
+        json={"estado": "NO_ENCONTRADO"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["aplicado_automaticamente"] is True
+
+
+def test_resolver_alternativa_faltante() -> None:
+    fake = _FakeCompraGuiadaService()
+    _override_auth()
+    app.dependency_overrides[get_compra_guiada_service] = lambda: fake
+
+    response = client.post(
+        "/api/v1/compras-guiadas/2/items/3/alternativa",
+        json={"precio_id": 77, "aceptar": True},
+    )
+
+    assert response.status_code == 200
+    assert fake.resuelta == (1, 2, 3, 77, True)
+
+
+def test_actualizar_permite_volver_a_pendiente_para_deshacer_estado() -> None:
     _override_auth()
     app.dependency_overrides[get_compra_guiada_service] = lambda: _FakeCompraGuiadaService()
 
@@ -109,7 +171,7 @@ def test_actualizar_rechaza_pendiente_por_contrato() -> None:
         json={"estado": "PENDIENTE"},
     )
 
-    assert response.status_code == 422
+    assert response.status_code == 200
 
 
 def test_finalizar_409_si_hay_pendientes_sin_confirmacion() -> None:
@@ -143,6 +205,7 @@ def _compra(estado: str = "PENDIENTE") -> CompraGuiadaDetalle:
                 bandera_nombre=None,
                 bandera_logo_url=None,
                 subtotal=100.0,
+                es_adicional=False,
                 items=[
                     ItemCompraGuiada(
                         progreso_item_id=3,

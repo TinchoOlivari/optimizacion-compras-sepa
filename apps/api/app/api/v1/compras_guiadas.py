@@ -25,6 +25,11 @@ class ActualizarProgresoItemRequest(BaseModel):
     estado: Literal["PENDIENTE", "CONSEGUIDO", "NO_ENCONTRADO", "DESCARTADO"]
 
 
+class ResolverAlternativaFaltanteRequest(BaseModel):
+    precio_id: int = Field(gt=0)
+    aceptar: bool
+
+
 class FinalizarCompraGuiadaRequest(BaseModel):
     confirmar_interrupcion: bool = False
 
@@ -54,6 +59,7 @@ class ParadaCompraGuiadaResponse(BaseModel):
     bandera_nombre: str | None = None
     bandera_logo_url: str | None = None
     subtotal: float
+    es_adicional: bool
     items: list[ItemCompraGuiadaResponse]
 
 
@@ -64,6 +70,42 @@ class CompraGuiadaResponse(BaseModel):
     fecha_cierre: datetime | None
     estado_cierre: str | None
     paradas: list[ParadaCompraGuiadaResponse]
+
+
+class AlternativaFaltanteResponse(BaseModel):
+    tipo: str
+    precio_id: int
+    producto_id: int
+    nombre_producto: str
+    url_imagen: str | None = None
+    sucursal_id: int
+    sucursal: str
+    comercio: str
+    direccion: str | None = None
+    localidad: str | None = None
+    provincia: str | None = None
+    bandera_nombre: str | None = None
+    bandera_logo_url: str | None = None
+    precio_unitario: float
+    subtotal: float
+    diferencia_precio: float
+    distancia_km: float | None = None
+    esta_en_recorrido: bool
+    requiere_nueva_parada: bool
+    confianza: str
+    motivo: str
+
+
+class ResultadoAlternativasFaltanteResponse(BaseModel):
+    progreso_item_id: int
+    tiene_alternativas: bool
+    alternativas: list[AlternativaFaltanteResponse]
+
+
+class ActualizarProgresoItemResponse(BaseModel):
+    compra: CompraGuiadaResponse
+    resultado_alternativas: ResultadoAlternativasFaltanteResponse | None = None
+    aplicado_automaticamente: bool = False
 
 
 def get_compra_guiada_service() -> CompraGuiadaService:
@@ -102,20 +144,61 @@ def obtener_compra_guiada(
     return _to_response(compra)
 
 
-@router.patch("/{compra_id}/items/{progreso_item_id}", response_model=CompraGuiadaResponse)
+@router.patch(
+    "/{compra_id}/items/{progreso_item_id}",
+    response_model=ActualizarProgresoItemResponse,
+)
 def actualizar_progreso_item(
     compra_id: int,
     progreso_item_id: int,
     body: ActualizarProgresoItemRequest,
     current_user: dict[str, int | str] = Depends(get_current_user),
     service: CompraGuiadaService = Depends(get_compra_guiada_service),
-) -> CompraGuiadaResponse:
+) -> ActualizarProgresoItemResponse:
     try:
-        compra = service.actualizar_item(
+        actualizacion = service.actualizar_item(
             int(current_user["id"]),
             compra_id,
             progreso_item_id,
             body.estado,
+        )
+    except CompraGuiadaNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": {"codigo": "NO_ENCONTRADO", "mensaje": str(error)}},
+        ) from error
+    except CompraGuiadaValidationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error": {"codigo": "COMPRA_INVALIDA", "mensaje": str(error)}},
+        ) from error
+    return ActualizarProgresoItemResponse(
+        compra=_to_response(actualizacion.compra),
+        resultado_alternativas=_to_resultado_alternativas_response(
+            actualizacion.resultado_alternativas
+        ),
+        aplicado_automaticamente=actualizacion.aplicado_automaticamente,
+    )
+
+
+@router.post(
+    "/{compra_id}/items/{progreso_item_id}/alternativa",
+    response_model=CompraGuiadaResponse,
+)
+def resolver_alternativa_faltante(
+    compra_id: int,
+    progreso_item_id: int,
+    body: ResolverAlternativaFaltanteRequest,
+    current_user: dict[str, int | str] = Depends(get_current_user),
+    service: CompraGuiadaService = Depends(get_compra_guiada_service),
+) -> CompraGuiadaResponse:
+    try:
+        compra = service.resolver_alternativa(
+            int(current_user["id"]),
+            compra_id,
+            progreso_item_id,
+            precio_id=body.precio_id,
+            aceptar=body.aceptar,
         )
     except CompraGuiadaNotFoundError as error:
         raise HTTPException(
@@ -176,6 +259,7 @@ def _to_response(compra: CompraGuiadaDetalle) -> CompraGuiadaResponse:
                 bandera_nombre=parada.bandera_nombre,
                 bandera_logo_url=parada.bandera_logo_url,
                 subtotal=parada.subtotal,
+                es_adicional=parada.es_adicional,
                 items=[
                     ItemCompraGuiadaResponse(
                         progreso_item_id=item.progreso_item_id,
@@ -195,3 +279,11 @@ def _to_response(compra: CompraGuiadaDetalle) -> CompraGuiadaResponse:
             for parada in compra.paradas
         ],
     )
+
+
+def _to_resultado_alternativas_response(
+    resultado: object,
+) -> ResultadoAlternativasFaltanteResponse | None:
+    if resultado is None:
+        return None
+    return ResultadoAlternativasFaltanteResponse.model_validate(resultado, from_attributes=True)

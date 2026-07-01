@@ -2,7 +2,8 @@
 
 ## Demo
 
-[demo.mp4](demo.mp4)
+https://github.com/user-attachments/assets/1c0a0a3e-d946-418f-a76f-26c88c5857c5
+
 
 ## Qué hay adentro
 

@@ -1,20 +1,32 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { EstadoItem } from "@tfg/shared";
 
-import { finalizarCompraGuiada, getCompraGuiada, updateProgresoItem } from "@/lib/api";
-import type { CompraGuiadaResponse } from "@/lib/api";
+import {
+  finalizarCompraGuiada,
+  getCompraGuiada,
+  resolverAlternativaFaltante,
+  updateProgresoItem,
+} from "@/lib/api";
+import type { AlternativaFaltanteResponse, CompraGuiadaResponse } from "@/lib/api";
 import { useAppStore } from "@/store/appStore";
 import { useToastStore } from "@/store/toastStore";
 
 import { buildCompraGuiada } from "../lib/buildCompraGuiada";
 import { compraGuiadaQueryKeys } from "../lib/queryKeys";
 
+export interface AlternativasFaltantePendientes {
+  progresoItemId: number;
+  alternativas: AlternativaFaltanteResponse[];
+}
+
 export function useCompraGuiadaViewModel(
   compraId: number | null,
   onFinalizado?: () => void,
 ) {
   const queryClient = useQueryClient();
+  const [alternativasPendientes, setAlternativasPendientes] =
+    useState<AlternativasFaltantePendientes | null>(null);
   const addToast = useToastStore((state) => state.addToast);
   const setCompraGuiadaActiva = useAppStore((state) => state.setCompraGuiadaActiva);
 
@@ -54,8 +66,66 @@ export function useCompraGuiadaViewModel(
       if (compraId == null || !context?.anterior) return;
       queryClient.setQueryData(compraGuiadaQueryKeys.detail(compraId), context.anterior);
     },
-    onSuccess: (compra) => {
+    onSuccess: (actualizacion) => {
+      queryClient.setQueryData(
+        compraGuiadaQueryKeys.detail(actualizacion.compra.id),
+        actualizacion.compra,
+      );
+      const resultado = actualizacion.resultado_alternativas;
+      if (!resultado) return;
+
+      if (!resultado.tiene_alternativas) {
+        addToast({
+          message: "No encontramos alternativas razonables para este producto.",
+          variant: "warning",
+        });
+        return;
+      }
+
+      if (actualizacion.aplicado_automaticamente) {
+        addToast({
+          message: "Movimos el producto a otra parada de tu recorrido.",
+          variant: "success",
+        });
+        return;
+      }
+
+      setAlternativasPendientes({
+        progresoItemId: resultado.progreso_item_id,
+        alternativas: resultado.alternativas,
+      });
+    },
+  });
+
+  const resolverAlternativaMutation = useMutation<
+    CompraGuiadaResponse,
+    Error,
+    { precioId: number; aceptar: boolean }
+  >({
+    mutationFn: ({ precioId, aceptar }) => {
+      if (compraId == null || alternativasPendientes == null) {
+        throw new Error("Alternativa inválida.");
+      }
+      return resolverAlternativaFaltante(
+        compraId,
+        alternativasPendientes.progresoItemId,
+        precioId,
+        aceptar,
+      );
+    },
+    onSuccess: (compra, { aceptar }) => {
       queryClient.setQueryData(compraGuiadaQueryKeys.detail(compra.id), compra);
+      setAlternativasPendientes(null);
+      addToast({
+        message: aceptar ? "Agregamos la alternativa al recorrido." : "Conservamos el recorrido original.",
+        variant: aceptar ? "success" : "info",
+      });
+    },
+    onError: () => {
+      addToast({
+        message: "No se pudo resolver la alternativa. Intentá nuevamente.",
+        variant: "error",
+      });
     },
   });
 
@@ -111,6 +181,14 @@ export function useCompraGuiadaViewModel(
     pendientes,
     progreso: totalItems > 0 ? ((totalItems - pendientes) / totalItems) * 100 : 0,
     actualizarEstado,
+    actualizandoItemId: actualizarMutation.isPending
+      ? (actualizarMutation.variables?.progresoItemId ?? null)
+      : null,
+    alternativasPendientes,
+    resolverAlternativa: (precioId: number, aceptar: boolean) =>
+      resolverAlternativaMutation.mutate({ precioId, aceptar }),
+    resolviendoAlternativa: resolverAlternativaMutation.isPending,
+    cerrarPropuestaAlternativa: () => setAlternativasPendientes(null),
     finalizar: (confirmarInterrupcion = false) => finalizarMutation.mutate(confirmarInterrupcion),
     finalizando: finalizarMutation.isPending,
   };

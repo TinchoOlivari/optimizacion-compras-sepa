@@ -26,6 +26,7 @@ export interface ParadaCompraViewModel {
   banderaNombre: string | null;
   banderaLogoUrl: string | null;
   subtotal: number;
+  esAdicional: boolean;
   items: ItemCompraViewModel[];
 }
 
@@ -47,6 +48,7 @@ export function buildCompraGuiada(compra: CompraGuiadaResponse): CompraGuiadaVie
     banderaNombre: parada.bandera_nombre,
     banderaLogoUrl: parada.bandera_logo_url,
     subtotal: parada.subtotal,
+    esAdicional: parada.es_adicional,
     items: parada.items.map(buildItemCompra),
   }));
 

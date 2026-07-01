@@ -154,7 +154,9 @@ class CatalogoRepository(ICatalogoRepository):
                             c.fecha_vigencia,
                             a.distancia_km
                         FROM agregado a
-                        INNER JOIN candidatos c ON c.comercio_id = a.comercio_id
+                        INNER JOIN candidatos c
+                            ON c.comercio_id = a.comercio_id
+                            AND c.comercio = a.comercio
                         ORDER BY
                             a.comercio_id,
                             CASE WHEN c.valor = a.valor THEN 0 ELSE 1 END,

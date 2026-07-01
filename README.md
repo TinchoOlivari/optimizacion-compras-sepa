@@ -1,4 +1,8 @@
-# Optimización de compras con datos abiertos del SEPA
+# Optimización de compras con datos abiertos del 
+
+## Demo
+
+[demo.mp4](demo.mp4)
 
 ## Qué hay adentro
 
@@ -52,8 +56,7 @@ Si corrés el mismo lote diez veces queda igual que correrlo una.
 
 ## OSRM (el ruteo, opcional)
 
-Para que calcule distancias reales por calle y no en línea recta uso OSRM. No arranca por defecto porque hay que bajar el mapa de Argentina y procesarlo una vez, y pesa: el mapa son unos 400 MB y
-procesado queda en ~3 GB.
+Para que calcule distancias reales por calle y no en línea recta uso OSRM. No arranca por defecto porque hay que bajar el mapa de Argentina y procesarlo una vez, y pesa: el mapa son unos 400 MB y procesado queda en ~3 GB.
 
 ```bash
 # 1. bajar el mapa de Argentina
@@ -68,7 +71,7 @@ docker run --rm --platform linux/amd64 -v "$(pwd)/infra/osm:/data" ghcr.io/proje
 docker compose -f infra/docker-compose.yml --profile geo up -d osrm
 ```
 
-Un detalle: en mi Mac el contenedor escucha en el 5000 pero afuera se publica en el 5001. Adentro
+Un detalle: en mi pc el contenedor escucha en el 5000 pero afuera se publica en el 5001. Adentro
 de Docker la api le habla por `http://osrm:5000`.
 
 ## Base de datos
